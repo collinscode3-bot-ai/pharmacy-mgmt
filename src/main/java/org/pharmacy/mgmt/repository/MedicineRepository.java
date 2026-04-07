@@ -10,12 +10,16 @@ import java.util.List;
 @Repository
 public interface MedicineRepository extends JpaRepository<Medicine, Integer> {
 
-    @Query("SELECT new org.pharmacy.mgmt.dto.LowStockDTO(m.name, SUM(i.quantityOnHand), m.reorderLevel) " +
-           "FROM Medicine m JOIN m.inventories i " +
+    @Query("SELECT new org.pharmacy.mgmt.dto.LowStockDTO(m.name, COALESCE(SUM(i.quantityOnHand), 0), m.reorderLevel) " +
+           "FROM Medicine m LEFT JOIN m.inventories i " +
            "GROUP BY m.name, m.reorderLevel " +
-           "HAVING SUM(i.quantityOnHand) < m.reorderLevel")
+           "HAVING COALESCE(SUM(i.quantityOnHand), 0) < m.reorderLevel")
     List<LowStockDTO> findLowStockMedicines();
 
-    @Query("SELECT COUNT(m) FROM Medicine m WHERE (SELECT SUM(i.quantityOnHand) FROM Inventory i WHERE i.medicine = m) < m.reorderLevel")
+    @Query("SELECT COUNT(m) FROM Medicine m WHERE COALESCE((SELECT SUM(i.quantityOnHand) FROM Inventory i WHERE i.medicine = m), 0) < m.reorderLevel")
     Long countLowStockMedicines();
+
+    List<Medicine> findByNameContainingIgnoreCaseOrGenericNameContainingIgnoreCase(String name, String genericName);
+
+    boolean existsByNameAndStrength(String name, String strength);
 }

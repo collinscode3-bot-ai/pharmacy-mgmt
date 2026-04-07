@@ -15,6 +15,7 @@ import org.pharmacy.mgmt.exception.UserAlreadyExistsException;
 import org.pharmacy.mgmt.model.Role;
 import org.pharmacy.mgmt.model.User;
 import org.pharmacy.mgmt.repository.UserRepository;
+import org.pharmacy.mgmt.security.JwtTokenProvider;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.Optional;
@@ -31,6 +32,9 @@ public class AuthServiceTest {
 
     @Mock
     private BCryptPasswordEncoder passwordEncoder;
+
+    @Mock
+    private JwtTokenProvider jwtTokenProvider;
 
     @InjectMocks
     private AuthService authService;
@@ -85,6 +89,7 @@ public class AuthServiceTest {
     void login_Success() {
         when(userRepository.findByUsername(anyString())).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(anyString(), anyString())).thenReturn(true);
+        when(jwtTokenProvider.generateToken(anyString(), anyMap())).thenReturn("testToken");
 
         AuthResponse response = authService.login(loginRequest);
 

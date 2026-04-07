@@ -18,4 +18,6 @@ public interface InventoryRepository extends JpaRepository<Inventory, Integer> {
 
     @Query("SELECT COUNT(i) FROM Inventory i WHERE i.expirationDate BETWEEN CURRENT_DATE AND :endDate")
     Long countExpiringItems(LocalDate endDate);
+
+    long countByMedicineMedicineId(Integer medicineId);
 }

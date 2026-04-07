@@ -37,6 +37,7 @@ public class JwtTokenProvider {
 
     public boolean validateToken(String token) {
         try {
+            System.out.println("Validating token: " + token);
             Jwts.parserBuilder().setSigningKey(getKey()).build().parseClaimsJws(token);
             return true;
         } catch (JwtException | IllegalArgumentException ex) {

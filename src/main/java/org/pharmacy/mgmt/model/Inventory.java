@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "Inventory", indexes = {
@@ -35,6 +36,15 @@ public class Inventory {
     @Column(name = "quantity_on_hand")
     private Integer quantityOnHand = 0;
 
-    @Column(name = "selling_price", precision = 10, scale = 2)
+    @Column(name = "purchase_price", nullable = false, precision = 10, scale = 2)
+    private BigDecimal purchasePrice;
+
+    @Column(name = "selling_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal sellingPrice;
+
+    @Column(length = 100)
+    private String location;
+
+    @Column(name = "last_updated", columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
+    private LocalDateTime lastUpdated;
 }

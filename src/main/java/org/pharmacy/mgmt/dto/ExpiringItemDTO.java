@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 
 @Data
 @NoArgsConstructor
@@ -15,4 +16,7 @@ public class ExpiringItemDTO {
     private String batchNumber;
     private LocalDate expirationDate;
     private Integer quantity;
+    private BigDecimal purchasePrice;
+    private BigDecimal sellingPrice;
+    private String location;
 }

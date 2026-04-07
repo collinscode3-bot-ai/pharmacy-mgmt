@@ -11,10 +11,10 @@ import java.util.List;
 @Repository
 public interface InventoryRepository extends JpaRepository<Inventory, Integer> {
 
-    @Query("SELECT new org.pharmacy.mgmt.dto.ExpiringItemDTO(i.medicine.name, i.batchNumber, i.expirationDate, i.quantityOnHand) " +
-           "FROM Inventory i " +
-           "WHERE i.expirationDate BETWEEN CURRENT_DATE AND :endDate")
-    List<ExpiringItemDTO> findExpiringItems(LocalDate endDate);
+        @Query("SELECT new org.pharmacy.mgmt.dto.ExpiringItemDTO(i.medicine.name, i.batchNumber, i.expirationDate, i.quantityOnHand, i.purchasePrice, i.sellingPrice, i.location) " +
+            "FROM Inventory i " +
+            "WHERE i.expirationDate BETWEEN CURRENT_DATE AND :endDate")
+        List<ExpiringItemDTO> findExpiringItems(LocalDate endDate);
 
     @Query("SELECT COUNT(i) FROM Inventory i WHERE i.expirationDate BETWEEN CURRENT_DATE AND :endDate")
     Long countExpiringItems(LocalDate endDate);

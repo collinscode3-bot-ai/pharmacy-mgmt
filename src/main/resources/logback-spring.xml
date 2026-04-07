@@ -1,0 +1,37 @@
+<configuration scan="true">
+
+    <!-- APP_LOG_PATH can be set via application.properties (app.logging.path) or environment -->
+    <property name="APP_LOG_PATH" value="${app.logging.path:-logs}"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+            <immediateFlush>true</immediateFlush>
+        </encoder>
+    </appender>
+
+    <appender name="ROLLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${APP_LOG_PATH}/app.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+            <immediateFlush>true</immediateFlush>
+        </encoder>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- daily files, with index when size exceeded; compressed -->
+            <fileNamePattern>${APP_LOG_PATH}/app-%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- rollover when file reaches 5MB -->
+            <maxFileSize>5MB</maxFileSize>
+            <!-- keep 30 days of logs -->
+            <maxHistory>30</maxHistory>
+            <!-- optional cap on total size of archived logs -->
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ROLLING"/>
+    </root>
+
+</configuration>

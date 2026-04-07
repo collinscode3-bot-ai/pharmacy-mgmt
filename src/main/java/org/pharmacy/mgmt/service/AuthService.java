@@ -1,6 +1,8 @@
 package org.pharmacy.mgmt.service;
 
 import lombok.RequiredArgsConstructor;
+import org.pharmacy.mgmt.security.JwtTokenProvider;
+import java.util.Map;
 import org.pharmacy.mgmt.dto.AuthResponse;
 import org.pharmacy.mgmt.dto.LoginRequest;
 import org.pharmacy.mgmt.dto.ResetPasswordRequest;
@@ -19,6 +21,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
 
     public AuthResponse signup(SignupRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
@@ -50,12 +53,16 @@ public class AuthService {
             throw new InvalidCredentialsException("Invalid username or password");
         }
 
+        // generate token
+        String token = jwtTokenProvider.generateToken(user.getUsername(), Map.of("role", user.getRole().name()));
+
         return AuthResponse.builder()
-                .message("Login successful")
-                .username(user.getUsername())
-                .role(user.getRole())
-                .full_name(user.getFull_name())
-                .build();
+            .message("Login successful")
+            .username(user.getUsername())
+            .role(user.getRole())
+            .full_name(user.getFull_name())
+            .token(token)
+            .build();
     }
 
     public AuthResponse resetPassword(ResetPasswordRequest request) {

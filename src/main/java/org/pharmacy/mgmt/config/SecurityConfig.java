@@ -1,5 +1,8 @@
 package org.pharmacy.mgmt.config;
 
+import org.pharmacy.mgmt.repository.UserRepository;
+import org.pharmacy.mgmt.security.JwtAuthenticationFilter;
+import org.pharmacy.mgmt.security.JwtTokenProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -8,10 +11,19 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
+
+    public SecurityConfig(JwtTokenProvider jwtTokenProvider, UserRepository userRepository) {
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.userRepository = userRepository;
+    }
 
     @Bean
     public BCryptPasswordEncoder passwordEncoder() {
@@ -24,10 +36,10 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/health").permitAll()
-                .requestMatchers("/api/auth/**").authenticated()
+                .requestMatchers("/api/auth/login", "/api/auth/signup", "/api/auth/reset").permitAll()
                 .anyRequest().authenticated()
             )
-            .httpBasic(Customizer.withDefaults());
+            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, userRepository), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

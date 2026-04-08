@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
+import org.pharmacy.mgmt.dto.CriticalInventoryResponse;
 
 @RestController
 @RequestMapping("/api/dashboard")
@@ -31,5 +32,24 @@ public class DashboardController {
     @GetMapping("/expiring")
     public ResponseEntity<List<ExpiringItemDTO>> getExpiring() {
         return ResponseEntity.ok(dashboardService.getExpiringItems());
+    }
+
+    @GetMapping("/critical-inventory")
+    public ResponseEntity<CriticalInventoryResponse> getCriticalInventory() {
+        CriticalInventoryResponse resp = new CriticalInventoryResponse(
+                dashboardService.getLowStockMedicines(),
+                dashboardService.getExpiringItems()
+        );
+        return ResponseEntity.ok(resp);
+    }
+
+    @GetMapping("/sales-trends")
+    public ResponseEntity<List<org.pharmacy.mgmt.dto.SalesTrendDTO>> getSalesTrends() {
+        return ResponseEntity.ok(dashboardService.getSalesTrendsLast7Days());
+    }
+
+    @GetMapping("/recent-activity")
+    public ResponseEntity<List<org.pharmacy.mgmt.dto.RecentActivityDTO>> getRecentActivity() {
+        return ResponseEntity.ok(dashboardService.getRecentActivity(5));
     }
 }

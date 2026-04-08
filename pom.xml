@@ -9,9 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>org.pharmacy.mgmt</groupId>
-	<artifactId>pharmacy-mgmt</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>pharmacy-mgmt</name>
+	<artifactId>pharmacy</artifactId>
+	<version>1.0</version>
+	<packaging>war</packaging>
+	<name>pharmacy</name>
 	<description/>
 	<url/>
 	<licenses>
@@ -52,6 +53,12 @@
 			<artifactId>spring-boot-devtools</artifactId>
 			<scope>runtime</scope>
 			<optional>true</optional>
+		</dependency>
+		<!-- Use provided Tomcat when packaging as WAR for external servlet container -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-tomcat</artifactId>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>com.mysql</groupId>

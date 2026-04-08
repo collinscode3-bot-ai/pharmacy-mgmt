@@ -7,6 +7,8 @@ import org.pharmacy.mgmt.dto.AuthResponse;
 import org.pharmacy.mgmt.dto.LoginRequest;
 import org.pharmacy.mgmt.dto.ResetPasswordRequest;
 import org.pharmacy.mgmt.dto.SignupRequest;
+import org.pharmacy.mgmt.dto.UpdateUserRequest;
+import org.pharmacy.mgmt.dto.UserResponseDTO;
 import org.pharmacy.mgmt.exception.InvalidCredentialsException;
 import org.pharmacy.mgmt.exception.UserAlreadyExistsException;
 import org.pharmacy.mgmt.model.Role;
@@ -29,9 +31,9 @@ public class AuthService {
         }
 
         User user = User.builder()
-                .username(request.getUsername())
-                .password_hash(passwordEncoder.encode(request.getPassword()))
-                .full_name(request.getFull_name())
+            .username(request.getUsername())
+            .password_hash(passwordEncoder.encode(request.getPassword()))
+            .full_name(request.getFull_name())
                 .role(request.getRole() != null ? request.getRole() : Role.Pharmacist)
                 .build();
 
@@ -49,7 +51,7 @@ public class AuthService {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid username or password"));
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword_hash())) {
+        if (!isValidPassword(request.getPassword(), user.getPassword_hash())) {
             throw new InvalidCredentialsException("Invalid username or password");
         }
 
@@ -63,6 +65,16 @@ public class AuthService {
             .full_name(user.getFull_name())
             .token(token)
             .build();
+    }
+
+    private boolean isValidPassword(String rawPassword, String storedPassword) {
+        if (rawPassword == null || storedPassword == null || storedPassword.isBlank()) {
+            return false;
+        }
+        // System.out.println("Raw password: " + rawPassword + ", Stored password: " + storedPassword);
+        // System.out.println("Encoded Password: " + passwordEncoder.encode(rawPassword));
+        // System.out.println(passwordEncoder.matches(rawPassword, storedPassword));
+        return passwordEncoder.matches(rawPassword, storedPassword);
     }
 
     public AuthResponse resetPassword(ResetPasswordRequest request) {
@@ -81,6 +93,49 @@ public class AuthService {
                 .username(user.getUsername())
                 .role(user.getRole())
                 .full_name(user.getFull_name())
+                .build();
+    }
+
+    public UserResponseDTO fetchUserByEmail(String email) {
+        User user = userRepository.findByUsername(email)
+                .orElseThrow(() -> new InvalidCredentialsException("User not found for email: " + email));
+
+        return toUserResponse(user);
+    }
+
+    public UserResponseDTO updateUser(String username, UpdateUserRequest payload) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new InvalidCredentialsException("User not found: " + username));
+
+        if (payload.getUsername() != null && !payload.getUsername().isBlank()
+                && !payload.getUsername().equalsIgnoreCase(username)) {
+            if (userRepository.findByUsername(payload.getUsername()).isPresent()) {
+                throw new UserAlreadyExistsException("Username already exists");
+            }
+            user.setUsername(payload.getUsername());
+        }
+
+        if (payload.getFull_name() != null && !payload.getFull_name().isBlank()) {
+            user.setFull_name(payload.getFull_name());
+        }
+
+        if (payload.getRole() != null) {
+            user.setRole(payload.getRole());
+        }
+
+        if (payload.getPassword() != null && !payload.getPassword().isBlank()) {
+            user.setPassword_hash(passwordEncoder.encode(payload.getPassword()));
+        }
+
+        User updated = userRepository.save(user);
+        return toUserResponse(updated);
+    }
+
+    private UserResponseDTO toUserResponse(User user) {
+        return UserResponseDTO.builder()
+                .username(user.getUsername())
+                .full_name(user.getFull_name())
+                .role(user.getRole())
                 .build();
     }
 }

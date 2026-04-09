@@ -2,6 +2,7 @@ package org.pharmacy.mgmt.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.pharmacy.mgmt.dto.MedicineCatalogResponse;
 import org.pharmacy.mgmt.dto.MedicineDTO;
 import org.pharmacy.mgmt.dto.MedicineResponseDTO;
 import org.pharmacy.mgmt.service.MedicineService;
@@ -9,8 +10,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/medicines")
 @RequiredArgsConstructor
@@ -19,13 +18,28 @@ public class MedicineController {
     private final MedicineService medicineService;
 
     @GetMapping
-    public ResponseEntity<List<MedicineResponseDTO>> list(@RequestParam(required = false) String query) {
-        return ResponseEntity.ok(medicineService.findAll(query));
+    public ResponseEntity<MedicineCatalogResponse> list(
+            @RequestParam(required = false, defaultValue = "0") Integer page,
+            @RequestParam(required = false, defaultValue = "25") Integer size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false, defaultValue = "asc") String dir,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) java.math.BigDecimal minPrice,
+            @RequestParam(required = false) java.math.BigDecimal maxPrice
+    ) {
+        return ResponseEntity.ok(medicineService.searchMedicines(page, size, sort, dir, q, category, status, minPrice, maxPrice));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/cards")
+    public ResponseEntity<org.pharmacy.mgmt.dto.MedicineCatalogCardsDTO> getCards() {
+        return ResponseEntity.ok(medicineService.getCatalogCards());
+    }
+
+    @GetMapping("/{id:\\d+}")
     public ResponseEntity<MedicineResponseDTO> get(@PathVariable Integer id) {
-        return medicineService.findById(id).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+        return medicineService.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping

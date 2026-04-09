@@ -4,28 +4,23 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.math.BigDecimal;
-import java.util.List;
-import org.pharmacy.mgmt.dto.InventoryDTO;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MedicineResponseDTO {
+public class MedicineListItemDTO {
     private Integer medicineId;
-    private String name;
     private String productType;
+    private String name;
     private String genericName;
     private String manufacturer;
     private String strength;
     private String dosageForm;
     private Integer reorderLevel;
     private Boolean isPrescriptionRequired;
-    private String description;
-    private Integer taxId;
-    private String taxName;
-    private BigDecimal taxPercentage;
-    private List<InventoryDTO> inventories;
+    private Integer totalQuantity;
+    private BigDecimal price; // representative selling price (min)
+    private String status; // in_stock|low_stock|out_of_stock
 }

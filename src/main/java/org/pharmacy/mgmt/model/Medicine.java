@@ -21,6 +21,10 @@ public class Medicine {
     @Column(nullable = false)
     private String name;
 
+    @Builder.Default
+    @Column(name = "product_type", nullable = false, columnDefinition = "ENUM('Medicine','Surgical')")
+    private String productType = "Medicine";
+
     @Column(name = "generic_name", length = 255)
     private String genericName;
 

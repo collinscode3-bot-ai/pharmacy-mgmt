@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -16,6 +18,8 @@ public class MedicineDTO {
 
     @NotBlank(message = "Medicine name is required")
     private String name;
+
+    private String productType;
 
     private String genericName;
     private String manufacturer;
@@ -29,4 +33,7 @@ public class MedicineDTO {
     private Integer taxId;
 
     private String taxName;
+
+    // Optional inventory batches to create when creating/updating a medicine
+    private List<InventoryDTO> inventories;
 }

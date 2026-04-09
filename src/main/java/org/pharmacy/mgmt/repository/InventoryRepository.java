@@ -20,4 +20,26 @@ public interface InventoryRepository extends JpaRepository<Inventory, Integer> {
     Long countExpiringItems(LocalDate endDate);
 
     long countByMedicineMedicineId(Integer medicineId);
+
+    @Query("SELECT COALESCE(SUM(i.quantityOnHand),0) FROM Inventory i WHERE i.medicine.medicineId = :medicineId")
+    Integer totalQuantityByMedicineId(Integer medicineId);
+
+    @Query("SELECT COALESCE(MIN(i.sellingPrice), 0) FROM Inventory i WHERE i.medicine.medicineId = :medicineId")
+    java.math.BigDecimal minSellingPriceByMedicineId(Integer medicineId);
+
+    @Query("SELECT m.medicineId FROM Medicine m LEFT JOIN m.inventories i GROUP BY m.medicineId HAVING COALESCE(SUM(i.quantityOnHand),0) > m.reorderLevel")
+    java.util.List<Integer> findMedicineIdsInStock();
+
+    @Query("SELECT m.medicineId FROM Medicine m LEFT JOIN m.inventories i GROUP BY m.medicineId HAVING COALESCE(SUM(i.quantityOnHand),0) > 0 AND COALESCE(SUM(i.quantityOnHand),0) <= m.reorderLevel")
+    java.util.List<Integer> findMedicineIdsLowStock();
+
+    @Query("SELECT m.medicineId FROM Medicine m LEFT JOIN m.inventories i GROUP BY m.medicineId HAVING COALESCE(SUM(i.quantityOnHand),0) = 0")
+    java.util.List<Integer> findMedicineIdsOutOfStock();
+
+    @Query("SELECT COALESCE(SUM(i.quantityOnHand * i.sellingPrice), 0) FROM Inventory i")
+    java.math.BigDecimal calculateCatalogValue();
+
+    java.util.List<Inventory> findByMedicineMedicineIdOrderByExpirationDateAsc(Integer medicineId);
+
+    java.util.Optional<Inventory> findFirstByMedicineMedicineIdAndBatchNumber(Integer medicineId, String batchNumber);
 }

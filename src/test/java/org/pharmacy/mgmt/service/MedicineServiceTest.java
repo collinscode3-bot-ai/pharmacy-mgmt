@@ -16,6 +16,7 @@ import org.pharmacy.mgmt.repository.InventoryRepository;
 import org.pharmacy.mgmt.repository.MedicineRepository;
 import org.pharmacy.mgmt.repository.SaleItemRepository;
 import org.pharmacy.mgmt.repository.TaxRepository;
+import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -86,6 +87,33 @@ public class MedicineServiceTest {
         when(medicineRepository.existsByNameAndStrength("Paracetamol", "500mg")).thenReturn(true);
 
         assertThrows(ResourceAlreadyExistsException.class, () -> medicineService.create(medicineDTO));
+    }
+
+    @Test
+    void createSurgicalItem_NullifiesDrugSpecificFields() {
+        MedicineDTO surgicalDto = MedicineDTO.builder()
+                .name("Absorbent Cotton")
+                .productType("Surgical")
+                .genericName("Should become null")
+                .strength("Should become null")
+                .dosageForm("Should become null")
+                .taxId(1)
+                .build();
+
+        when(taxRepository.findById(1)).thenReturn(Optional.of(tax));
+        when(medicineRepository.existsByNameAndStrength("Absorbent Cotton", "Should become null")).thenReturn(false);
+        when(medicineRepository.save(any(Medicine.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        medicineService.create(surgicalDto);
+
+        ArgumentCaptor<Medicine> captor = ArgumentCaptor.forClass(Medicine.class);
+        verify(medicineRepository).save(captor.capture());
+        Medicine saved = captor.getValue();
+
+        assertEquals("Surgical", saved.getProductType());
+        assertNull(saved.getGenericName());
+        assertNull(saved.getStrength());
+        assertNull(saved.getDosageForm());
     }
 
     @Test

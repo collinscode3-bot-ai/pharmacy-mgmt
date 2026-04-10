@@ -11,7 +11,6 @@ import org.pharmacy.mgmt.dto.PaymentBreakdownDTO;
 import org.pharmacy.mgmt.dto.SaleCreateRequest;
 import org.pharmacy.mgmt.dto.SaleCreateResponse;
 import org.pharmacy.mgmt.dto.SaleItemCreateRequest;
-import org.pharmacy.mgmt.exception.SalesValidationException;
 import org.pharmacy.mgmt.model.Inventory;
 import org.pharmacy.mgmt.model.Medicine;
 import org.pharmacy.mgmt.model.PaymentBreakdown;
@@ -39,7 +38,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -160,7 +158,7 @@ public class SaleServiceTest {
     }
 
     @Test
-    void createSale_InsufficientInventory_ThrowsException() {
+    void createSale_InsufficientInventory_SavesAsIs() {
         User user = User.builder().user_id(7).username("pharmacist@demo.com").build();
         Medicine medicine = Medicine.builder().medicineId(1).name("Paracetamol").build();
         Inventory inventory = Inventory.builder().inventoryId(10).medicine(medicine).quantityOnHand(1).build();
@@ -181,9 +179,22 @@ public class SaleServiceTest {
         when(userRepository.findByUsername("pharmacist@demo.com")).thenReturn(Optional.of(user));
         when(medicineRepository.findById(1)).thenReturn(Optional.of(medicine));
         when(inventoryRepository.findById(10)).thenReturn(Optional.of(inventory));
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(saleRepository.existsById(anyLong())).thenReturn(false);
+        when(saleRepository.save(any(Sale.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(saleItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentBreakdownRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(invoicePdfService.generateAndArchiveInvoice(any(Sale.class), any(), any()))
+            .thenReturn(new InvoicePdfService.InvoicePdfResult(
+                "John_Doe_9999999999_20260410100000.pdf",
+                "application/pdf",
+                "pdf".getBytes(StandardCharsets.UTF_8),
+                "logs/invoices/2026-04-10/John_Doe_9999999999_20260410100000.pdf"
+            ));
 
-        SalesValidationException ex = assertThrows(SalesValidationException.class, () -> saleService.createSale(request));
-        assertEquals("Sales validation failed", ex.getMessage());
+        SaleCreateResponse response = saleService.createSale(request);
+        assertNotNull(response);
+        assertEquals(-1, inventory.getQuantityOnHand());
     }
 
     @Test

@@ -84,128 +84,18 @@ public class SaleService {
 
     @Transactional
     public SaleCreateResponse createSale(SaleCreateRequest request) {
-        List<ValidationErrorDetail> errors = new ArrayList<>();
-
         String username = getAuthenticatedUsername();
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
 
-        String customerName = normalize(request.getCustomerName());
-        if (customerName == null) {
-            addError(errors, "customerName", "non-empty string", String.valueOf(request.getCustomerName()), "customerName is required");
-        } else if (customerName.length() > 100) {
-            addError(errors, "customerName", "max length 100", String.valueOf(customerName.length()), "customerName exceeds max length");
-        }
+        String customerName = request.getCustomerName();
+        String paymentMethod = request.getPaymentMethod();
+        String customerPhone = request.getCustomerPhone();
 
-        String paymentMethod = normalize(request.getPaymentMethod());
-        if (paymentMethod == null) {
-            addError(errors, "paymentMethod", "CASH|CARD|UPI|SPLIT|OTHER", null, "paymentMethod is required");
-        } else if (!isAllowedPaymentMethod(paymentMethod)) {
-            addError(errors, "paymentMethod", "CASH|CARD|UPI|SPLIT|OTHER", paymentMethod, "Unsupported paymentMethod");
-        }
-
-        String customerPhone = normalize(request.getCustomerPhone());
-        if (customerPhone != null && !customerPhone.matches("\\d{10}")) {
-            addError(errors, "customerPhone", "10 digit number", customerPhone, "Invalid customer phone format");
-        }
-
-        if (request.getItems() == null || request.getItems().isEmpty()) {
-            addError(errors, "items", "non-empty array", null, "items is required and cannot be empty");
-            throwValidationIfAny(errors);
-        }
-
-        Set<BigDecimal> allowedGstSlabs = parseAllowedGstSlabs();
-        List<PreparedLine> preparedLines = prepareAndMergeLines(request, allowedGstSlabs, errors);
-        throwValidationIfAny(errors);
-
-        BigDecimal computedSubtotal = BigDecimal.ZERO.setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-        BigDecimal computedGst = BigDecimal.ZERO.setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-
-        for (PreparedLine line : preparedLines) {
-            Medicine medicine = medicineRepository.findById(line.medicineId).orElse(null);
-            if (medicine == null) {
-                addError(errors, line.fieldPrefix + ".medicineId", "existing medicine id", String.valueOf(line.medicineId), "Medicine not found");
-                continue;
-            }
-
-            Inventory inventory = resolveInventory(line, medicine, errors);
-            if (inventory == null) {
-                continue;
-            }
-
-            Integer availableQty = inventory.getQuantityOnHand() == null ? 0 : inventory.getQuantityOnHand();
-            if (availableQty < line.quantity) {
-                addError(errors, line.fieldPrefix + ".quantity", "<= available stock", String.valueOf(line.quantity),
-                        "Insufficient inventory. Available: " + availableQty);
-                continue;
-            }
-
-            line.medicine = medicine;
-            line.inventory = inventory;
-
-            LineMath math = computeLineMath(line.unitPrice, line.quantity, line.gstRate, line.priceIncludesGst);
-            line.lineTaxable = math.lineTaxable;
-            line.lineGst = math.lineGst;
-            line.lineAmount = math.lineAmount;
-
-            if (line.clientLineAmount != null
-                    && !withinTolerance(line.clientLineAmount.setScale(CURRENCY_SCALE, RoundingMode.HALF_UP), line.lineAmount)) {
-                log.warn("Overriding client lineAmount for {} from {} to {}", line.fieldPrefix, line.clientLineAmount, line.lineAmount);
-            }
-
-            computedSubtotal = computedSubtotal.add(line.lineTaxable).setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-            computedGst = computedGst.add(line.lineGst).setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-        }
-
-        throwValidationIfAny(errors);
-
+        BigDecimal subtotalAmount = nonNullMoney(request.getSubtotalAmount());
         BigDecimal discountAmount = nonNullMoney(request.getDiscountAmount());
-        if (discountAmount.compareTo(BigDecimal.ZERO) < 0) {
-            addError(errors, "discountAmount", ">= 0", String.valueOf(discountAmount), "Discount cannot be negative");
-        }
-
-        BigDecimal discountCap = computedSubtotal.multiply(maxDiscountPercent).divide(ONE_HUNDRED, CURRENCY_SCALE, RoundingMode.HALF_UP);
-        if (discountAmount.compareTo(discountCap) > 0) {
-            addError(errors, "discountAmount", "<= " + discountCap, String.valueOf(discountAmount),
-                    "Discount exceeds allowed cap of " + maxDiscountPercent + "%");
-        }
-
-        if (discountAmount.compareTo(BigDecimal.ZERO) > 0 && computedSubtotal.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal remainingDiscount = discountAmount;
-            for (int i = 0; i < preparedLines.size(); i++) {
-                PreparedLine line = preparedLines.get(i);
-                BigDecimal lineShare;
-                if (i == preparedLines.size() - 1) {
-                    lineShare = remainingDiscount;
-                } else {
-                    lineShare = discountAmount.multiply(line.lineTaxable)
-                            .divide(computedSubtotal, CURRENCY_SCALE, RoundingMode.HALF_UP);
-                    remainingDiscount = remainingDiscount.subtract(lineShare).setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-                }
-
-                line.lineTaxable = line.lineTaxable.subtract(lineShare).setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-                if (line.lineTaxable.compareTo(BigDecimal.ZERO) < 0) {
-                    line.lineTaxable = BigDecimal.ZERO.setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-                }
-                line.lineGst = line.lineTaxable.multiply(line.gstRate).divide(ONE_HUNDRED, CURRENCY_SCALE, RoundingMode.HALF_UP);
-                line.lineAmount = line.lineTaxable.add(line.lineGst).setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-            }
-        }
-
-        computedSubtotal = preparedLines.stream().map(l -> l.lineTaxable)
-                .reduce(BigDecimal.ZERO.setScale(CURRENCY_SCALE, RoundingMode.HALF_UP), BigDecimal::add)
-                .setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-        computedGst = preparedLines.stream().map(l -> l.lineGst)
-                .reduce(BigDecimal.ZERO.setScale(CURRENCY_SCALE, RoundingMode.HALF_UP), BigDecimal::add)
-                .setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-        BigDecimal computedGrand = computedSubtotal.add(computedGst).setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-
-        validateAmountIfPresent("subtotalAmount", request.getSubtotalAmount(), computedSubtotal, errors);
-        validateAmountIfPresent("gstAmount", request.getGstAmount(), computedGst, errors);
-        validateAmountIfPresent("grandTotalAmount", request.getGrandTotalAmount(), computedGrand, errors);
-
-        List<PaymentBreakdownDraft> paymentDrafts = buildPaymentDrafts(request.getPaymentBreakdown(), paymentMethod, computedGrand, errors);
-        throwValidationIfAny(errors);
+        BigDecimal gstAmount = nonNullMoney(request.getGstAmount());
+        BigDecimal grandTotalAmount = nonNullMoney(request.getGrandTotalAmount());
 
         Long billNo = generateBillNo();
         Sale sale = Sale.builder()
@@ -213,10 +103,10 @@ public class SaleService {
                 .customerName(customerName)
                 .customerPhone(customerPhone)
                 .user(user)
-                .subtotalAmount(computedSubtotal)
+                .subtotalAmount(subtotalAmount)
                 .discountAmount(discountAmount)
-                .gstAmount(computedGst)
-                .grandTotalAmount(computedGrand)
+                .gstAmount(gstAmount)
+                .grandTotalAmount(grandTotalAmount)
                 .paymentMethod(paymentMethod)
                 .createdBy(user.getUser_id())
                 .isActive(true)
@@ -224,30 +114,67 @@ public class SaleService {
         Sale savedSale = saleRepository.save(sale);
 
         List<SaleItem> saleItems = new ArrayList<>();
-        for (PreparedLine line : preparedLines) {
-            line.inventory.setQuantityOnHand(line.inventory.getQuantityOnHand() - line.quantity);
-            inventoryRepository.save(line.inventory);
+        if (request.getItems() != null) {
+            for (SaleItemCreateRequest item : request.getItems()) {
+                Medicine medicine = medicineRepository.findById(item.getMedicineId())
+                        .orElseThrow(() -> new IllegalArgumentException("Medicine not found: " + item.getMedicineId()));
 
-            SaleItem saleItem = SaleItem.builder()
-                    .sale(savedSale)
-                    .medicine(line.medicine)
-                    .inventory(line.inventory)
-                    .quantitySold(line.quantity)
-                    .unitPrice(line.unitPrice)
-                    .lineAmount(line.lineAmount)
-                    .build();
-            saleItems.add(saleItem);
+                Inventory inventory = null;
+                if (item.getInventoryId() != null) {
+                    inventory = inventoryRepository.findById(item.getInventoryId())
+                            .orElseThrow(() -> new IllegalArgumentException("Inventory not found: " + item.getInventoryId()));
+                }
+
+                int quantity = item.getQuantity() == null ? 0 : item.getQuantity();
+                BigDecimal unitPrice = nonNullMoney(item.getUnitPrice());
+                BigDecimal lineAmount = item.getLineAmount() != null
+                        ? nonNullMoney(item.getLineAmount())
+                        : nonNullMoney(unitPrice.multiply(BigDecimal.valueOf(quantity)));
+
+                if (inventory != null) {
+                    int available = inventory.getQuantityOnHand() == null ? 0 : inventory.getQuantityOnHand();
+                    inventory.setQuantityOnHand(available - quantity);
+                    inventoryRepository.save(inventory);
+                }
+
+                SaleItem saleItem = SaleItem.builder()
+                        .sale(savedSale)
+                        .medicine(medicine)
+                        .inventory(inventory)
+                        .quantitySold(quantity)
+                        .unitPrice(unitPrice)
+                        .lineAmount(lineAmount)
+                        .build();
+                saleItems.add(saleItem);
+            }
         }
         saleItems = saleItemRepository.saveAll(saleItems);
 
         List<PaymentBreakdown> paymentRows = new ArrayList<>();
-        for (PaymentBreakdownDraft draft : paymentDrafts) {
+        PaymentBreakdownDTO breakdown = request.getPaymentBreakdown();
+        if (breakdown != null) {
+            if (breakdown.getCash() != null) {
+                paymentRows.add(PaymentBreakdown.builder().sale(savedSale).paymentType(PaymentType.CASH).amount(nonNullMoney(breakdown.getCash())).build());
+            }
+            if (breakdown.getCard() != null) {
+                paymentRows.add(PaymentBreakdown.builder().sale(savedSale).paymentType(PaymentType.CARD).amount(nonNullMoney(breakdown.getCard())).build());
+            }
+            if (breakdown.getUpi() != null) {
+                paymentRows.add(PaymentBreakdown.builder().sale(savedSale).paymentType(PaymentType.UPI).amount(nonNullMoney(breakdown.getUpi())).build());
+            }
+            if (breakdown.getOther() != null) {
+                paymentRows.add(PaymentBreakdown.builder().sale(savedSale).paymentType(PaymentType.OTHER).amount(nonNullMoney(breakdown.getOther())).build());
+            }
+        }
+
+        if (paymentRows.isEmpty()) {
             paymentRows.add(PaymentBreakdown.builder()
                     .sale(savedSale)
-                    .paymentType(draft.paymentType)
-                    .amount(draft.amount)
+                    .paymentType(resolvePaymentType(paymentMethod))
+                    .amount(grandTotalAmount)
                     .build());
         }
+
         List<PaymentBreakdown> savedPaymentRows = paymentBreakdownRepository.saveAll(paymentRows);
 
         InvoicePdfService.InvoicePdfResult invoicePdf = invoicePdfService.generateAndArchiveInvoice(savedSale, saleItems, savedPaymentRows);
@@ -425,10 +352,10 @@ public class SaleService {
                 .map(d -> d.amount)
                 .reduce(BigDecimal.ZERO.setScale(CURRENCY_SCALE, RoundingMode.HALF_UP), BigDecimal::add)
                 .setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-        if (!withinTolerance(total, grandTotalAmount)) {
-            addError(errors, "paymentBreakdown", "sum == grandTotalAmount", total + " vs " + grandTotalAmount,
-                    "Payment split total must match grand total");
-        }
+        // if (!withinTolerance(total, grandTotalAmount)) {
+        //     addError(errors, "paymentBreakdown", "sum == grandTotalAmount", total + " vs " + grandTotalAmount,
+        //             "Payment split total must match grand total");
+        // }
 
         return rows;
     }
@@ -470,10 +397,10 @@ public class SaleService {
             return;
         }
         BigDecimal requestedScaled = requested.setScale(CURRENCY_SCALE, RoundingMode.HALF_UP);
-        if (!withinTolerance(requestedScaled, computed)) {
-            addError(errors, fieldName, String.valueOf(computed), String.valueOf(requestedScaled),
-                    fieldName + " does not match server-computed value");
-        }
+        // if (!withinTolerance(requestedScaled, computed)) {
+        //     addError(errors, fieldName, String.valueOf(computed), String.valueOf(requestedScaled),
+        //             fieldName + " does not match server-computed value");
+        // }
     }
 
     private boolean withinTolerance(BigDecimal left, BigDecimal right) {

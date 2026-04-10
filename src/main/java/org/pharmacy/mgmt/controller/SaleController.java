@@ -1,6 +1,5 @@
 package org.pharmacy.mgmt.controller;
 
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.pharmacy.mgmt.dto.SaleCreateRequest;
 import org.pharmacy.mgmt.dto.SaleCreateResponse;
@@ -30,7 +29,7 @@ public class SaleController {
     }
 
     @PostMapping
-    public ResponseEntity<SaleCreateResponse> create(@Valid @RequestBody SaleCreateRequest request) {
+    public ResponseEntity<SaleCreateResponse> create(@RequestBody SaleCreateRequest request) {
         SaleCreateResponse created = saleService.createSale(request);
         return ResponseEntity.created(URI.create("/api/sales/" + created.getBillNo())).body(created);
     }

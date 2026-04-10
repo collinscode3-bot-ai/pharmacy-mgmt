@@ -163,6 +163,21 @@ public class MedicineService {
         );
     }
 
+    /**
+     * Fetch first 16 products alphabetically, or if startsWith provided,
+     * return all products starting with that character (case-insensitive).
+     */
+    public java.util.List<MedicineResponseDTO> fetchAlphabeticalOrByChar(String startsWith) {
+        java.util.List<Medicine> meds;
+        if (startsWith == null || startsWith.isBlank()) {
+            meds = medicineRepository.findTop16ByOrderByNameAsc();
+        } else {
+            String prefix = startsWith.trim().substring(0, 1);
+            meds = medicineRepository.findByNameStartingWithIgnoreCaseOrderByNameAsc(prefix);
+        }
+        return meds.stream().map(this::toResponseDto).collect(Collectors.toList());
+    }
+
     @Transactional
     public MedicineResponseDTO create(MedicineDTO dto) {
         Tax tax = taxRepository.findById(dto.getTaxId())

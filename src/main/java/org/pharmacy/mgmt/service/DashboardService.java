@@ -27,9 +27,13 @@ public class DashboardService {
 
     public DashboardSummaryDTO getDashboardSummary() {
         LocalDate ninetyDaysFromNow = LocalDate.now().plusDays(90);
+        BigDecimal todaySales = saleRepository.calculateTodaySales();
+        if (todaySales == null) {
+            todaySales = BigDecimal.ZERO;
+        }
 
         return DashboardSummaryDTO.builder()
-                .todaySales(saleRepository.calculateTodaySales())
+                .todaySales(todaySales.setScale(2, RoundingMode.HALF_UP))
                 .lowStockCount(medicineRepository.countLowStockMedicines())
                 .expiringSoonCount(inventoryRepository.countExpiringItems(ninetyDaysFromNow))
                 .build();
@@ -59,10 +63,10 @@ public class DashboardService {
         }
 
         public java.util.List<RecentActivityDTO> getRecentActivity(int limit) {
-            java.util.List<org.pharmacy.mgmt.model.Sale> sales = saleRepository.findTop5ByOrderBySaleDateDesc();
+            java.util.List<org.pharmacy.mgmt.model.Sale> sales = saleRepository.findTop5ByIsActiveTrueOrderByCreatedAtDesc();
             return sales.stream()
                     .limit(limit)
-                    .map(s -> new RecentActivityDTO(s.getCustomerName(), s.getBillNo(), s.getTotalAmount()))
+                .map(s -> new RecentActivityDTO(s.getCustomerName(), s.getBillNo(), s.getGrandTotalAmount()))
                     .collect(java.util.stream.Collectors.toList());
         }
 

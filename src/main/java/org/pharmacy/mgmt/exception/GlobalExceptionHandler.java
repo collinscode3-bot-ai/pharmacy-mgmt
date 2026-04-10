@@ -75,6 +75,15 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(SalesValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleSalesValidation(SalesValidationException ex) {
+        log.warn("Sales validation failed: {}", ex.getMessage());
+        Map<String, Object> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        error.put("errors", ex.getErrors());
+        return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleGeneralException(Exception ex) {
         log.error("Unhandled exception caught by global handler", ex);

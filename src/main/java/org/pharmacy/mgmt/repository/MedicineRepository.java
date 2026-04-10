@@ -26,4 +26,8 @@ public interface MedicineRepository extends JpaRepository<Medicine, Integer>, Jp
     List<Medicine> findByNameContainingIgnoreCaseOrGenericNameContainingIgnoreCase(String name, String genericName);
 
     boolean existsByNameAndStrength(String name, String strength);
+
+    List<Medicine> findTop16ByOrderByNameAsc();
+
+    List<Medicine> findByNameStartingWithIgnoreCaseOrderByNameAsc(String prefix);
 }

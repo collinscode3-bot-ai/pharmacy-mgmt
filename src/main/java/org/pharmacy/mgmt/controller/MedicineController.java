@@ -32,6 +32,13 @@ public class MedicineController {
         return ResponseEntity.ok(medicineService.searchMedicines(page, size, sort, dir, q, category, status, minPrice, maxPrice));
     }
 
+    @GetMapping("/alpha")
+    public ResponseEntity<java.util.List<MedicineResponseDTO>> alphabetical(
+            @RequestParam(required = false, name = "startsWith") String startsWith
+    ) {
+        return ResponseEntity.ok(medicineService.fetchAlphabeticalOrByChar(startsWith));
+    }
+
     @GetMapping("/cards")
     public ResponseEntity<org.pharmacy.mgmt.dto.MedicineCatalogCardsDTO> getCards() {
         return ResponseEntity.ok(medicineService.getCatalogCards());

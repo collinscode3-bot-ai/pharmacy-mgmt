@@ -2,7 +2,11 @@ package org.pharmacy.mgmt.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "Sale_Items")
@@ -13,28 +17,37 @@ import java.math.BigDecimal;
 @Builder
 public class SaleItem {
 
-    @EmbeddedId
-    private SaleItemId id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "bill_item_id")
+    private Integer billItemId;
 
-    @MapsId("billNo")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "bill_no", nullable = false)
     private Sale sale;
 
-    @MapsId("medicineId")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "medicine_id", nullable = false)
     private Medicine medicine;
 
-    @Column(nullable = false)
-    private Integer quantity;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "inventory_id")
+    private Inventory inventory;
+
+    @Column(name = "quantity_sold", nullable = false)
+    private Integer quantitySold;
 
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal unitPrice;
 
-    @Column(name = "tax_amount", precision = 10, scale = 2)
-    private BigDecimal taxAmount;
+    @Column(name = "line_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal lineAmount;
 
-    @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
-    private BigDecimal totalAmount;
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 }

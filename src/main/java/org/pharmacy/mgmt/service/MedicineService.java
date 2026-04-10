@@ -16,6 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -251,25 +255,53 @@ public class MedicineService {
 
             Medicine saved = medicineRepository.save(existing);
 
-            // If inventories provided on update, update matching batch records or create new ones
-            if (dto.getInventories() != null && !dto.getInventories().isEmpty()) {
+            // Inventory sync logic:
+            // 1) fetch existing inventories for the medicine,
+            // 2) delete records whose IDs are missing from payload,
+            // 3) update payload rows with IDs,
+            // 4) create payload rows without IDs.
+            if (dto.getInventories() != null) {
+                List<org.pharmacy.mgmt.model.Inventory> existingInventories =
+                        inventoryRepository.findByMedicineMedicineIdOrderByExpirationDateAsc(saved.getMedicineId());
+
+                Map<Integer, org.pharmacy.mgmt.model.Inventory> existingById = new HashMap<>();
+                for (org.pharmacy.mgmt.model.Inventory inv : existingInventories) {
+                    existingById.put(inv.getInventoryId(), inv);
+                }
+
+                Set<Integer> payloadIds = new HashSet<>();
                 for (org.pharmacy.mgmt.dto.InventoryDTO invDto : dto.getInventories()) {
-                    String batch = invDto.getBatchNumber();
-                    if (batch != null && !batch.isBlank()) {
-                        java.util.Optional<org.pharmacy.mgmt.model.Inventory> existingInv = inventoryRepository.findFirstByMedicineMedicineIdAndBatchNumber(saved.getMedicineId(), batch);
-                        if (existingInv.isPresent()) {
-                            org.pharmacy.mgmt.model.Inventory inv = existingInv.get();
-                            if (invDto.getExpirationDate() != null) inv.setExpirationDate(invDto.getExpirationDate());
-                            if (invDto.getQuantityOnHand() != null) inv.setQuantityOnHand(invDto.getQuantityOnHand());
-                            if (invDto.getPurchasePrice() != null) inv.setPurchasePrice(invDto.getPurchasePrice());
-                            if (invDto.getSellingPrice() != null) inv.setSellingPrice(invDto.getSellingPrice());
-                            if (invDto.getLocation() != null) inv.setLocation(invDto.getLocation());
-                            inventoryRepository.save(inv);
-                            continue;
+                    if (invDto.getInventoryId() != null) {
+                        payloadIds.add(invDto.getInventoryId());
+                    }
+                }
+
+                List<org.pharmacy.mgmt.model.Inventory> toDelete = existingInventories.stream()
+                        .filter(inv -> !payloadIds.contains(inv.getInventoryId()))
+                        .collect(Collectors.toList());
+                if (!toDelete.isEmpty()) {
+                    inventoryRepository.deleteAll(toDelete);
+                }
+
+                for (org.pharmacy.mgmt.dto.InventoryDTO invDto : dto.getInventories()) {
+                    Integer invId = invDto.getInventoryId();
+
+                    if (invId != null) {
+                        org.pharmacy.mgmt.model.Inventory inv = existingById.get(invId);
+                        if (inv == null) {
+                            throw new IllegalArgumentException("Inventory not found for this medicine: " + invId);
                         }
+
+                        inv.setBatchNumber(invDto.getBatchNumber());
+                        inv.setExpirationDate(invDto.getExpirationDate() == null ? java.time.LocalDate.now().plusYears(1) : invDto.getExpirationDate());
+                        inv.setQuantityOnHand(invDto.getQuantityOnHand() == null ? 0 : invDto.getQuantityOnHand());
+                        inv.setPurchasePrice(invDto.getPurchasePrice());
+                        inv.setSellingPrice(invDto.getSellingPrice());
+                        inv.setLocation(invDto.getLocation());
+                        inventoryRepository.save(inv);
+                        continue;
                     }
 
-                    // create new inventory/batch if not matched
                     org.pharmacy.mgmt.model.Inventory invNew = org.pharmacy.mgmt.model.Inventory.builder()
                             .medicine(saved)
                             .batchNumber(invDto.getBatchNumber())
@@ -322,6 +354,7 @@ public class MedicineService {
         java.util.List<org.pharmacy.mgmt.model.Inventory> invs = inventoryRepository.findByMedicineMedicineIdOrderByExpirationDateAsc(m.getMedicineId());
         if (invs != null && !invs.isEmpty()) {
             java.util.List<org.pharmacy.mgmt.dto.InventoryDTO> invDtos = invs.stream().map(i -> org.pharmacy.mgmt.dto.InventoryDTO.builder()
+                    .inventoryId(i.getInventoryId())
                     .batchNumber(i.getBatchNumber())
                     .expirationDate(i.getExpirationDate())
                     .quantityOnHand(i.getQuantityOnHand())

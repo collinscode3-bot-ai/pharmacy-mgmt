@@ -14,6 +14,7 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Builder
 public class InventoryDTO {
+    private Integer inventoryId;
     private String batchNumber;
     private LocalDate expirationDate;
     private Integer quantityOnHand;

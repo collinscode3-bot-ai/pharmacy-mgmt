@@ -3,12 +3,13 @@ package org.pharmacy.mgmt.repository;
 import org.pharmacy.mgmt.model.Sale;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 
 @Repository
-public interface SaleRepository extends JpaRepository<Sale, Long> {
+public interface SaleRepository extends JpaRepository<Sale, Long>, JpaSpecificationExecutor<Sale> {
 
     @Query(value = "SELECT COALESCE(SUM(grand_total_amount), 0) FROM Sales " +
             "WHERE DATE(created_at) = CURDATE() AND COALESCE(is_active, 1) = 1", nativeQuery = true)

@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 @Builder
 public class SaleItemCreateRequest {
 
+    private Integer billItemId;
+
     @NotNull(message = "Medicine ID is required")
     private Integer medicineId;
 

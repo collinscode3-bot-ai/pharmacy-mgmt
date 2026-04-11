@@ -51,6 +51,10 @@ public class Medicine {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Builder.Default
+    @Column(name = "is_active")
+    private Boolean isActive = true;
+
     @ManyToOne
     @JoinColumn(name = "tax_id")
     private Tax tax;

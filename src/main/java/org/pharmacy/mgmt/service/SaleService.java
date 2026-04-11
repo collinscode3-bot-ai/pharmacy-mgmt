@@ -43,6 +43,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.pharmacy.mgmt.dto.SaleSearchDTO;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -82,6 +88,38 @@ public class SaleService {
         });
     }
 
+    @Transactional(readOnly = true)
+    public Page<SaleSearchDTO> searchSales(Optional<Long> billNo,
+                                           Optional<String> patientName,
+                                           Optional<LocalDate> billDate,
+                                           Pageable pageable) {
+        Specification<org.pharmacy.mgmt.model.Sale> spec = (root, query, cb) -> {
+            java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+
+            billNo.ifPresent(b -> predicates.add(cb.equal(root.get("billNo"), b)));
+
+            patientName.ifPresent(name -> {
+                String pattern = "%" + name.trim().toLowerCase() + "%";
+                predicates.add(cb.like(cb.lower(root.get("customerName")), pattern));
+            });
+
+            billDate.ifPresent(date -> {
+                LocalDateTime start = date.atStartOfDay();
+                LocalDateTime end = start.plusDays(1);
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), start));
+                predicates.add(cb.lessThan(root.get("createdAt"), end));
+            });
+
+            predicates.add(cb.equal(cb.coalesce(root.get("isActive"), cb.literal(true)), true));
+
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        Page<org.pharmacy.mgmt.model.Sale> page = saleRepository.findAll(spec, pageable);
+
+        return page.map(s -> new SaleSearchDTO(s.getBillNo(), s.getCreatedAt(), s.getCustomerName(), s.getGrandTotalAmount()));
+    }
+
     @Transactional
     public SaleCreateResponse createSale(SaleCreateRequest request) {
         String username = getAuthenticatedUsername();
@@ -118,11 +156,17 @@ public class SaleService {
             for (SaleItemCreateRequest item : request.getItems()) {
                 Medicine medicine = medicineRepository.findById(item.getMedicineId())
                         .orElseThrow(() -> new IllegalArgumentException("Medicine not found: " + item.getMedicineId()));
+                if (Boolean.FALSE.equals(medicine.getIsActive())) {
+                    throw new IllegalArgumentException("Medicine is inactive: " + item.getMedicineId());
+                }
 
                 Inventory inventory = null;
                 if (item.getInventoryId() != null) {
                     inventory = inventoryRepository.findById(item.getInventoryId())
                             .orElseThrow(() -> new IllegalArgumentException("Inventory not found: " + item.getInventoryId()));
+                    if (Boolean.FALSE.equals(inventory.getIsActive())) {
+                        throw new IllegalArgumentException("Inventory is inactive: " + item.getInventoryId());
+                    }
                 }
 
                 int quantity = item.getQuantity() == null ? 0 : item.getQuantity();
@@ -229,6 +273,7 @@ public class SaleService {
     private List<SaleItemCreateRequest> mapItemsContract(List<SaleItem> saleItems) {
         return saleItems.stream()
                 .map(item -> SaleItemCreateRequest.builder()
+                .billItemId(item.getBillItemId())
                         .medicineId(item.getMedicine() != null ? item.getMedicine().getMedicineId() : null)
                         .inventoryId(item.getInventory() != null ? item.getInventory().getInventoryId() : null)
                         .quantity(item.getQuantitySold())
@@ -298,6 +343,11 @@ public class SaleService {
                 return null;
             }
 
+            if (Boolean.FALSE.equals(inventory.getIsActive())) {
+                addError(errors, line.fieldPrefix + ".inventoryId", "active inventory", String.valueOf(line.inventoryId), "Inventory is inactive");
+                return null;
+            }
+
             if (inventory.getMedicine() == null
                     || inventory.getMedicine().getMedicineId() == null
                     || !inventory.getMedicine().getMedicineId().equals(medicine.getMedicineId())) {
@@ -310,6 +360,7 @@ public class SaleService {
 
         List<Inventory> inventories = inventoryRepository.findByMedicineMedicineIdOrderByExpirationDateAsc(medicine.getMedicineId());
         return inventories.stream()
+            .filter(i -> !Boolean.FALSE.equals(i.getIsActive()))
                 .filter(i -> i.getQuantityOnHand() != null && i.getQuantityOnHand() >= line.quantity)
                 .findFirst()
                 .orElseGet(() -> {

@@ -21,4 +21,5 @@ public class InventoryDTO {
     private BigDecimal purchasePrice;
     private BigDecimal sellingPrice;
     private String location;
+    private Boolean isActive;
 }

@@ -23,6 +23,7 @@ public class MedicineResponseDTO {
     private String dosageForm;
     private Integer reorderLevel;
     private Boolean isPrescriptionRequired;
+    private Boolean isActive;
     private String description;
     private Integer taxId;
     private String taxName;

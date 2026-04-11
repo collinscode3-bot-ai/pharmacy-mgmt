@@ -46,11 +46,16 @@ public class MedicineService {
         } else {
             medicines = medicineRepository.findAll();
         }
-        return medicines.stream().map(this::toResponseDto).collect(Collectors.toList());
+        return medicines.stream()
+                .filter(this::isActive)
+                .map(this::toResponseDto)
+                .collect(Collectors.toList());
     }
 
     public Optional<MedicineResponseDTO> findById(Integer id) {
-        return medicineRepository.findById(id).map(this::toResponseDto);
+        return medicineRepository.findById(id)
+                .filter(this::isActive)
+                .map(this::toResponseDto);
     }
 
     public MedicineCatalogResponse searchMedicines(Integer page, Integer size, String sort, String dir,
@@ -97,6 +102,7 @@ public class MedicineService {
         Specification<Medicine> spec = (root, query, cb) -> {
             query.distinct(true);
             java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+            predicates.add(cb.equal(cb.coalesce(root.get("isActive"), cb.literal(true)), true));
             if (q != null && !q.isEmpty()) {
                 String pattern = "%" + q.toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -106,6 +112,7 @@ public class MedicineService {
             }
             if (minPrice != null || maxPrice != null) {
                 jakarta.persistence.criteria.Join<?,?> inv = root.join("inventories", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.equal(cb.coalesce(inv.get("isActive"), cb.literal(true)), true));
                 if (minPrice != null) predicates.add(cb.greaterThanOrEqualTo(inv.get("sellingPrice"), minPrice));
                 if (maxPrice != null) predicates.add(cb.lessThanOrEqualTo(inv.get("sellingPrice"), maxPrice));
             }
@@ -154,7 +161,7 @@ public class MedicineService {
     }
 
     public org.pharmacy.mgmt.dto.MedicineCatalogCardsDTO getCatalogCards() {
-        long totalSku = medicineRepository.count();
+        long totalSku = medicineRepository.countActiveMedicines();
         Long lowStock = medicineRepository.countLowStockMedicines();
         Long outOfStock = medicineRepository.countOutOfStockMedicines();
         java.math.BigDecimal catalogValue = inventoryRepository.calculateCatalogValue();
@@ -174,7 +181,7 @@ public class MedicineService {
     public java.util.List<MedicineResponseDTO> fetchAlphabeticalOrByChar(String startsWith) {
         java.util.List<Medicine> meds;
         if (startsWith == null || startsWith.isBlank()) {
-            meds = medicineRepository.findTop16ByOrderByNameAsc();
+            meds = medicineRepository.findTop16ByOrderByNameAsc().stream().limit(16).collect(Collectors.toList());
         } else {
             String prefix = startsWith.trim().substring(0, 1);
             meds = medicineRepository.findByNameStartingWithIgnoreCaseOrderByNameAsc(prefix);
@@ -203,6 +210,7 @@ public class MedicineService {
             .dosageForm(surgical ? null : normalizeNullable(dto.getDosageForm()))
                 .reorderLevel(dto.getReorderLevel() == null ? 10 : dto.getReorderLevel())
                 .isPrescriptionRequired(dto.getIsPrescriptionRequired() != null && dto.getIsPrescriptionRequired())
+                .isActive(dto.getIsActive() == null ? true : dto.getIsActive())
                 .description(dto.getDescription())
                 .tax(tax)
                 .build();
@@ -220,6 +228,7 @@ public class MedicineService {
                             .purchasePrice(invDto.getPurchasePrice())
                             .sellingPrice(invDto.getSellingPrice())
                             .location(invDto.getLocation())
+                            .isActive(invDto.getIsActive() == null ? true : invDto.getIsActive())
                             .build()
             ).collect(Collectors.toList());
             inventoryRepository.saveAll(toSave);
@@ -239,6 +248,7 @@ public class MedicineService {
             if (dto.getDosageForm() != null) existing.setDosageForm(normalizeNullable(dto.getDosageForm()));
             if (dto.getReorderLevel() != null) existing.setReorderLevel(dto.getReorderLevel());
             if (dto.getIsPrescriptionRequired() != null) existing.setIsPrescriptionRequired(dto.getIsPrescriptionRequired());
+            if (dto.getIsActive() != null) existing.setIsActive(dto.getIsActive());
             if (dto.getDescription() != null) existing.setDescription(dto.getDescription());
 
             if (isSurgical(existing.getProductType())) {
@@ -298,6 +308,7 @@ public class MedicineService {
                         inv.setPurchasePrice(invDto.getPurchasePrice());
                         inv.setSellingPrice(invDto.getSellingPrice());
                         inv.setLocation(invDto.getLocation());
+                        if (invDto.getIsActive() != null) inv.setIsActive(invDto.getIsActive());
                         inventoryRepository.save(inv);
                         continue;
                     }
@@ -310,6 +321,7 @@ public class MedicineService {
                             .purchasePrice(invDto.getPurchasePrice())
                             .sellingPrice(invDto.getSellingPrice())
                             .location(invDto.getLocation())
+                            .isActive(invDto.getIsActive() == null ? true : invDto.getIsActive())
                             .build();
                     inventoryRepository.save(invNew);
                 }
@@ -342,6 +354,7 @@ public class MedicineService {
                 .dosageForm(m.getDosageForm())
                 .reorderLevel(m.getReorderLevel())
                 .isPrescriptionRequired(m.getIsPrescriptionRequired())
+                .isActive(m.getIsActive())
                 .description(m.getDescription())
                 .build();
         if (m.getTax() != null) {
@@ -361,6 +374,7 @@ public class MedicineService {
                     .purchasePrice(i.getPurchasePrice())
                     .sellingPrice(i.getSellingPrice())
                     .location(i.getLocation())
+                    .isActive(i.getIsActive())
                     .build()
             ).collect(Collectors.toList());
             dto.setInventories(invDtos);
@@ -393,5 +407,9 @@ public class MedicineService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean isActive(Medicine medicine) {
+        return !Boolean.FALSE.equals(medicine.getIsActive());
     }
 }

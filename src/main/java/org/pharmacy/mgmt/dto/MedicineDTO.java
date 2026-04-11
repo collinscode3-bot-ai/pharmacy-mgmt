@@ -27,6 +27,7 @@ public class MedicineDTO {
     private String dosageForm;
     private Integer reorderLevel;
     private Boolean isPrescriptionRequired;
+    private Boolean isActive;
     private String description;
 
     @NotNull(message = "Tax ID is required")
